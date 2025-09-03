@@ -1,6 +1,6 @@
 {
-  "name": "Shiro",
-  "short_name": "Shiro",
+  "name": "shiro",
+  "short_name": "shiro",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
