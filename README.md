@@ -1,2 +1,2 @@
-# Resizer
-Dia Game
+# Shiro
+Shiro
