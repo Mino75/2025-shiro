@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Castles Clash — readable build</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <!-- All CSS is injected by styles.js -->
+  <script src="styles.js"></script>
+  <!-- Game logic -->
+  <script defer src="main.js"></script>
+</head>
+<body>
+  <!-- Lock portrait on mobile -->
+  <div id="rotateOverlay">
+    <div class="rotatePanel">
+      <div class="big">📱↩️</div>
+      <div>Please rotate your phone to <b>landscape</b> to play.</div>
+    </div>
+  </div>
+
+  <div id="app">
+    <!-- Single-row HUD to save space on mobile -->
+    <header id="hud">
+      <!-- Left (Medieval) castle summary -->
+      <div class="castleBadge">
+        <span class="emoji">🏰</span>
+        <div class="hpDots" id="leftHp"></div>
+      </div>
+
+      <!-- Player active types -->
+      <div class="actives" id="leftActives"></div>
+
+      <!-- Card slot (draw + actions) -->
+      <div class="cardSlim" id="cardSlot">
+        <div class="placeholder">Draw every 10s — Play or ❌ (double chance)</div>
+      </div>
+
+      <!-- AI active types -->
+      <div class="actives" id="rightActives"></div>
+
+      <!-- Right (Temple) castle summary -->
+      <div class="castleBadge">
+        <span class="emoji">🏯</span>
+        <div class="hpDots" id="rightHp"></div>
+      </div>
+    </header>
+
+    <!-- Battlefield -->
+    <main id="arenaWrap">
+      <div id="arena">
+        <!-- Scenery -->
+        <div id="sky">
+          <div id="sun">☀️</div>
+          <div id="clouds"></div>
+        </div>
+        <div id="ground">
+          <div id="trees"></div>
+        </div>
+        <div id="horizonLine"></div>
+
+        <!-- Lanes (just for z-order and anchor heights) -->
+        <div class="lane air" id="airLane"></div>
+        <div class="lane ground" id="groundLane"></div>
+
+        <!-- Actual castles at hard edges (visible, high z-index) -->
+        <div class="castle left tooltip" id="leftCastle" data-title="🏰 Left Castle">🏰</div>
+        <div class="castle right tooltip" id="rightCastle" data-title="🏯 Right Castle">🏯</div>
+
+        
+      </div>
+    </main>
+
+    <!-- Footer: status + turn timer -->
+    <footer id="controls">
+      <div class="legend">
+        <div id="statusText"></div>
+        <div class="row">
+          <span>Unit HP dots: <span class="hpDotSample">●●●</span></span>
+          <span>Ranged hits spawn projectiles 💥</span>
+        </div>
+        <div class="turnTimer">
+          <div class="bar" id="turnTimerBar"></div>
+        </div>
+      </div>
+    </footer>
+
+    <!-- End overlay -->
+    <div id="endOverlay" class="overlay hidden">
+      <div class="panel">
+        <div id="endText" class="endText"></div>
+        <button id="restartBtn" class="btn primary lg">Restart</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
