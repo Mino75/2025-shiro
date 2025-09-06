@@ -394,59 +394,64 @@ PROD:${(t.productionScaled / 1000).toFixed(1)}s`
   const inRange = (att, tar, range) =>
     facingOK(att, tar) && distX(att, tar) <= range;
 
-   function tryAttack(u) {
-     const t = TYPE_BY_KEY[u.typeKey];
-     if (now() < u.nextAtk) return;
+  // try attack 
    
-     const range = t.projectile ? getDynamicStat(u, "range") : MELEE_RANGE;
+function tryAttack(u) {
+  const t = TYPE_BY_KEY[u.typeKey];
+  if (now() < u.nextAtk) return;
+
+  const range = t.projectile ? t.range : MELEE_RANGE;
+
+  // Collect candidates in front and in range
+  const candidates = enemiesFor(u)
+    .filter((e) => {
+      if (!inRange(u, e, range)) return false;           // forward arc + distance
+      if (!t.projectile && u.layer !== e.layer) return false; // melee: same layer only
+      return true;
+    })
+    .sort((a, b) => distX(u, a) - distX(u, b));
+
+  // Jumpers skip the first enemy once
+  if (t.moveType === "jump" && !u.skippedFirst && candidates.length) {
+    u.skippedFirst = true;
+    return;
+  }
+
+  // Choose exactly one target (closest, or random if exactly two)
+  let target = null;
+  if (candidates.length === 2) {
+    target = candidates[Math.floor(Math.random() * 2)];
+  } else if (candidates.length > 0) {
+    target = candidates[0];
+  }
+
+  // Ranged can target castle if in range (forward)
+  if (!target && t.projectile) {
+    const castleX = u.side === LEFT ? ARENA_W() - CASTLE_W / 2 : CASTLE_W / 2;
+    const dummy = {
+      x: castleX,
+      layer: LAYERS.GROUND,
+      isCastle: true,
+      castleSide: u.side === LEFT ? RIGHT : LEFT
+    };
+    if (inRange(u, dummy, t.range)) target = dummy;
+  }
+
+  if (!target) return;
+
+  // Perform attack immediately
+  if (t.projectile) {
+    shoot(u, target, t);
+  } else {
+    dealDamage(u, target, t.dmg, t.blast, true);
+  }
+
+  // Cooldown until next swing/shot
+  u.nextAtk = now() + t.atkMsScaled;
+}
+
+
    
-     // Collect candidates in *front* and in range
-     const candidates = enemiesFor(u)
-       .filter((e) => {
-         if (!inRange(u, e, range)) return false;
-         if (!t.projectile && u.layer !== e.layer) return false; // melee same layer only
-         return true;
-       })
-       .sort((a, b) => distX(u, a) - distX(u, b));
-   
-     // Jumpers skip first enemy once
-     if (t.moveType === "jump" && !u.skippedFirst && candidates.length) {
-       u.skippedFirst = true;
-       return;
-     }
-   
-     // Choose one target (closest, or random if exactly two)
-     let target = null;
-     if (candidates.length === 2) {
-       target = candidates[Math.floor(Math.random() * 2)];
-     } else if (candidates.length > 0) {
-       target = candidates[0];
-     }
-   
-     // Allow ranged to also hit castle in range
-     if (!target && t.projectile) {
-       const castleX = u.side === LEFT ? ARENA_W() - CASTLE_W / 2 : CASTLE_W / 2;
-       const dummy = {
-         x: castleX,
-         layer: LAYERS.GROUND,
-         isCastle: true,
-         castleSide: u.side === LEFT ? RIGHT : LEFT
-       };
-       if (inRange(u, dummy, t.range)) target = dummy;
-     }
-   
-     if (!target) return;
-   
-     // Attack immediately
-     if (t.projectile) {
-       shoot(u, target, t);
-     } else {
-       dealDamage(u, target, t.dmg, t.blast, true);
-     }
-   
-     // Next attack after cooldown
-     u.nextAtk = now() + getDynamicStat(u, "atkMs");
-   }
   function shoot(u, target, t) {
     const pr = {
       id: newId(),
@@ -583,26 +588,28 @@ PROD:${(t.productionScaled / 1000).toFixed(1)}s`
    function moveUnit(u, dt) {
      const t = TYPE_BY_KEY[u.typeKey];
    
-     // If any valid target is in range, hold position
-     const range = t.projectile ? getDynamicStat(u, "range") : MELEE_RANGE;
+     // Hold position if any valid target is in forward range
+     const range = t.projectile ? t.range : MELEE_RANGE;
      const hasEnemy = enemiesFor(u).some(e =>
        inRange(u, e, range) &&
-       (t.projectile || u.layer === e.layer)  // melee must match layer
+       (t.projectile || u.layer === e.layer) // melee: same layer only
      );
      if (hasEnemy) return;
    
-     // Normal movement (jumpers keep bouncing)
-     let dx = getDynamicStat(u, "moveSpeed") * dt * (u.side === LEFT ? +1 : -1);
+     // Otherwise, move normally (jumpers keep bouncing)
+     let dx = t.moveSpeedScaled * dt * (u.side === LEFT ? +1 : -1);
      if (t.moveType === "jump") {
        u.jumpPhase += dt * GLOBAL_SPEED;
        const phase = (Math.sin(u.jumpPhase * 8) + 1) * 0.5;
        dx *= phase < 0.8 ? 0.5 : 2.0;
      }
-   
+
      u.x += dx;
      positionUnitEl(u);
    }
 
+//move projectiles
+   
   function moveProjectiles(dt) {
     for (let i = state.projectiles.length - 1; i >= 0; i--) {
       const pr = state.projectiles[i];
@@ -936,5 +943,6 @@ PROD:${(t.productionScaled / 1000).toFixed(1)}s`
     init();
   }
 })();
+
 
 
