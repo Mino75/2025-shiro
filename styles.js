@@ -225,7 +225,7 @@ body {
   position: absolute;
   left: 0; right: 0; top: 50%;
   height: 2px;
-  background: #dff7d7;
+  background: #000;
   z-index: 6;
 }
 
@@ -531,3 +531,4 @@ body {
   style.textContent = css;
   document.head.appendChild(style);
 })();
+
