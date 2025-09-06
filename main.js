@@ -24,7 +24,7 @@
   const RIGHT = "right";
   const LAYERS = { GROUND: "ground", AIR: "air" };
   const MELEE_RANGE = 28;           // pixels
-  const ATTACK_STOP_MS = 260;       // stop briefly while attacking
+  //const ATTACK_STOP_MS = 260;       // stop briefly while attacking
   const MAX_ACTIVE_TYPES = 5;
   // Global scaling helpers
   const scaleSpeed = (v) => v * GLOBAL_SPEED;
@@ -394,65 +394,59 @@ PROD:${(t.productionScaled / 1000).toFixed(1)}s`
   const inRange = (att, tar, range) =>
     facingOK(att, tar) && distX(att, tar) <= range;
 
-  function tryAttack(u) {
-    const t = TYPE_BY_KEY[u.typeKey];
-    if (now() < u.nextAtk || now() < u.attackLockUntil) return;
-
-    const range = t.projectile ? t.range : MELEE_RANGE;
-
-    // Collect candidates in range
-    const candidates = enemiesFor(u)
-      .filter((e) => {
-        if (!inRange(u, e, range)) return false;
-        // Melee cannot hit flying targets
-        if (!t.projectile && e.layer === LAYERS.AIR) return false;
-        return true;
-      })
-      .sort((a, b) => distX(u, a) - distX(u, b));
-
-    // Jumpers skip the first enemy once, then attach to the next targets
-    if (t.moveType === "jump" && !u.skippedFirst && candidates.length) {
-      u.skippedFirst = true;
-      return;
-    }
-
-    // Choose exactly one target:
-    // - if exactly 2, pick randomly between them
-    // - otherwise pick the closest one
-    let target = null;
-    if (candidates.length === 2) {
-      target = candidates[Math.floor(Math.random() * 2)];
-    } else if (candidates.length > 0) {
-      target = candidates[0];
-    }
-
-    // Allow ranged to target the enemy castle if in range
-    if (!target && t.projectile) {
-      const castleX =
-        u.side === LEFT ? ARENA_W() - CASTLE_W / 2 : CASTLE_W / 2;
-      const dummy = {
-        x: castleX,
-        layer: LAYERS.GROUND,
-        isCastle: true,
-        castleSide: u.side === LEFT ? RIGHT : LEFT
-      };
-      if (inRange(u, dummy, t.range)) target = dummy;
-    }
-
-    if (!target) return;
-
-    // Stop briefly while attacking (visual pause)
-    u.attackLockUntil = now() + ATTACK_STOP_MS;
-
-    if (t.projectile) {
-      shoot(u, target, t);
-    } else {
-      dealDamage(u, target, t.dmg, t.blast, true);
-    }
-
-    u.nextAtk = now() + t.atkMsScaled;
-  }
-
+   function tryAttack(u) {
+     const t = TYPE_BY_KEY[u.typeKey];
+     if (now() < u.nextAtk) return;
+   
+     const range = t.projectile ? getDynamicStat(u, "range") : MELEE_RANGE;
+   
+     // Collect candidates in *front* and in range
+     const candidates = enemiesFor(u)
+       .filter((e) => {
+         if (!inRange(u, e, range)) return false;
+         if (!t.projectile && u.layer !== e.layer) return false; // melee same layer only
+         return true;
+       })
+       .sort((a, b) => distX(u, a) - distX(u, b));
+   
+     // Jumpers skip first enemy once
+     if (t.moveType === "jump" && !u.skippedFirst && candidates.length) {
+       u.skippedFirst = true;
+       return;
+     }
+   
+     // Choose one target (closest, or random if exactly two)
+     let target = null;
+     if (candidates.length === 2) {
+       target = candidates[Math.floor(Math.random() * 2)];
+     } else if (candidates.length > 0) {
+       target = candidates[0];
+     }
+   
+     // Allow ranged to also hit castle in range
+     if (!target && t.projectile) {
+       const castleX = u.side === LEFT ? ARENA_W() - CASTLE_W / 2 : CASTLE_W / 2;
+       const dummy = {
+         x: castleX,
+         layer: LAYERS.GROUND,
+         isCastle: true,
+         castleSide: u.side === LEFT ? RIGHT : LEFT
+       };
+       if (inRange(u, dummy, t.range)) target = dummy;
+     }
+   
+     if (!target) return;
+   
+     // Attack immediately
+     if (t.projectile) {
+       shoot(u, target, t);
+     } else {
+       dealDamage(u, target, t.dmg, t.blast, true);
+     }
+   
+     // Next attack after cooldown
+     u.nextAtk = now() + getDynamicStat(u, "atkMs");
+   }
   function shoot(u, target, t) {
     const pr = {
       id: newId(),
@@ -586,23 +580,28 @@ PROD:${(t.productionScaled / 1000).toFixed(1)}s`
   /* -------------------------------------------------------
      Movement & projectile updates
   ------------------------------------------------------- */
-  function moveUnit(u, dt) {
-    // Stop moving if the unit is currently attacking
-    if (now() < u.attackLockUntil) return;
-
-    const t = TYPE_BY_KEY[u.typeKey];
-    let dx = t.moveSpeedScaled * dt * (u.side === LEFT ? +1 : -1);
-
-    // Simple "hop" motion for jumpers (also used by eagle/cricket)
-    if (t.moveType === "jump") {
-      u.jumpPhase += dt * GLOBAL_SPEED;
-      const phase = (Math.sin(u.jumpPhase * 8) + 1) * 0.5;
-      dx *= phase < 0.8 ? 0.5 : 2.0;
-    }
-
-    u.x += dx;
-    positionUnitEl(u);
-  }
+   function moveUnit(u, dt) {
+     const t = TYPE_BY_KEY[u.typeKey];
+   
+     // If any valid target is in range, hold position
+     const range = t.projectile ? getDynamicStat(u, "range") : MELEE_RANGE;
+     const hasEnemy = enemiesFor(u).some(e =>
+       inRange(u, e, range) &&
+       (t.projectile || u.layer === e.layer)  // melee must match layer
+     );
+     if (hasEnemy) return;
+   
+     // Normal movement (jumpers keep bouncing)
+     let dx = getDynamicStat(u, "moveSpeed") * dt * (u.side === LEFT ? +1 : -1);
+     if (t.moveType === "jump") {
+       u.jumpPhase += dt * GLOBAL_SPEED;
+       const phase = (Math.sin(u.jumpPhase * 8) + 1) * 0.5;
+       dx *= phase < 0.8 ? 0.5 : 2.0;
+     }
+   
+     u.x += dx;
+     positionUnitEl(u);
+   }
 
   function moveProjectiles(dt) {
     for (let i = state.projectiles.length - 1; i >= 0; i--) {
@@ -937,4 +936,5 @@ PROD:${(t.productionScaled / 1000).toFixed(1)}s`
     init();
   }
 })();
+
 
