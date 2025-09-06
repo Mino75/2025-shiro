@@ -18,18 +18,60 @@
   ------------------------------------------------------- */
   const GLOBAL_SPEED = 0.2;         // <1 slower, >1 faster (affects everything)
   const CASTLE_W = 80;
-  const TURN_MS = 10000;            // 10 seconds per "chance"
+  const TURN_MS = 5000;            // 10 seconds per "chance"
   const PROJ_SPEED_BASE = 320;
   const LEFT = "left";
   const RIGHT = "right";
   const LAYERS = { GROUND: "ground", AIR: "air" };
   const MELEE_RANGE = 28;           // pixels
   //const ATTACK_STOP_MS = 260;       // stop briefly while attacking
-  const MAX_ACTIVE_TYPES = 5;
+  const MAX_ACTIVE_TYPES = 6;
   // Global scaling helpers
   const scaleSpeed = (v) => v * GLOBAL_SPEED;
   const scaleTime = (ms) => ms / GLOBAL_SPEED;
   const PROJ_SPEED = scaleSpeed(PROJ_SPEED_BASE);
+  const PROJECTILE_SIZE_PX = 7;  // global projectile emoji size (pixels)
+  // --- Rider & equipment sizing/offsets (easy to tweak) ---
+  const RIDER_TO_MOUNT_RATIO  = 0.75; // rider font size = unit.size * this
+  const EQUIP_TO_RIDER_RATIO  = 0.50; // equip font size = riderFont * this (50%)
+
+  const RIDER_OFFSET_Y_PX     = 0;   // vertical nudge for rider on the mount
+  const EQUIP_OFFSET_FWD_PX   = 0;    // +x toward facing, -x away (px)
+  const EQUIP_OFFSET_UP_PX    = 0;    // +y down, -y up (px)
+
+  // --- Mid-feature config (data-driven) ---
+  const MID_FEATURES = [
+    { emoji: "🗻", weight: 1, min: 40, max: 72, scale: 1.5 },
+    { emoji: "🌋", weight: 1, min: 40, max: 72, scale: 1.5 },
+  ]
+  // responsive sizing; size ≈ ARENA_W * factor, then clamped by per-item min/max
+  const MIDFEATURE_SIZE_FACTOR = 1 / 14;
+  // push feature *down* below the horizon so ground hides that slice
+  const MIDFEATURE_SINK_PX = 6;     // increase to hide more behind horizon
+  // optional random size jitter for variety (0.0 = off)
+  const MIDFEATURE_JITTER = 0.0;    // e.g. 0.1 gives ±10%
+
+      // --- Clouds (data-driven) ---
+    const CLOUD_TYPES = [
+      { emoji: "☁️",  weight: 3 },
+      { emoji: "🌧️", weight: 1 },
+    ];
+    const CLOUD_COUNT        = (w) => Math.round(Math.min(10, Math.max(4, w / 160)));
+    const CLOUD_SIZE_RANGE   = [36, 56];   // px
+    const CLOUD_TOP_RANGE    = [8, 70];    // px from top of #sky
+    const CLOUD_SPEED_RANGE  = [18, 30];   // seconds
+
+    // --- Meadow (data-driven) ---
+    const MEADOW_ITEMS = [
+      { emoji: "🌼", weight: 3, scale: [0.75, 1.15] },
+      { emoji: "🌾", weight: 2, scale: [0.85, 1.20] },
+    ];
+    const MEADOW_COUNT         = (w) => Math.round(Math.min(36, Math.max(12, w / 35)));
+    const MEADOW_BOTTOM_RANGE  = [4, 16];     // px above ground bottom
+    const MEADOW_ROTATION_DEG  = [-6, 6];     // random tilt
+    const MEADOW_OPACITY_RANGE = [0.85, 1];
+    const MEADOW_SIDE_MARGIN   = 16;          // keep away from arena edges
+
 
   /* -------------------------------------------------------
      Units roster and balance (per your roles)
@@ -41,45 +83,58 @@
 // ---------- ROSTER (one object per line; same order) ----------
 const UNIT_TYPES = [
   // --- Tanks (melee, very low damage, HP = castle 18) ---
-  { key:"sauropod", emoji:"🦕", size:45, hp:18, dmg:P(1), atkMs:1100, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:60,  moveType:"advance", locomotion:"walk", production:6500,  mounted:false },
-  { key:"phoenix",  emoji:"🐦‍🔥", size:38, hp:18, dmg:P(1), atkMs:950,  range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:95,  moveType:"advance", locomotion:"fly",  production:5500,  mounted:false },
+  { key:"sauropod", emoji:"🦕", size:60, hp:P(21), dmg:P(1), atkMs:620, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:100,  moveType:"advance", locomotion:"walk", production:2000,  mounted:false },
+  { key:"phoenix",  emoji:"🐦‍🔥", size:40, hp:P(21), dmg:P(1), atkMs:620,  range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:100,  moveType:"advance", locomotion:"fly",  production:2000,  mounted:false },
 
-  // --- Attacker (melee DMG 8) ---
-  { key:"rex",      emoji:"🦖",  size:40, hp:P(5), dmg:P(13), atkMs:800, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:85,  moveType:"advance", locomotion:"walk", production:5200,  mounted:true  },
+  // --- Unique Attacker (melee DMG 8) ---
+  { key:"rex",      emoji:"🦖",  size:40, hp:P(5), dmg:P(13), atkMs:100, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:200,  moveType:"advance", locomotion:"walk", production:3000,  mounted:false  },
 
   // --- Rushers (very fast move + fast production, low HP) ---
-  { key:"horse",    emoji:"🏇",  size:30, hp:P(3), dmg:P(3), atkMs:380, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:260, moveType:"advance", locomotion:"walk", production:800,   mounted:true  },
-  { key:"eagle",    emoji:"🦅",  size:26, hp:P(2), dmg:P(3), atkMs:500, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:200, moveType:"jump",    locomotion:"fly",  production:1200, mounted:false },
+  { key:"horse",    emoji:"🏇",  size:30, hp:P(3), dmg:P(3), atkMs:380, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:350, moveType:"advance", locomotion:"walk", production:300,   mounted:true  },
+  { key:"zebra",    emoji:"🦓",  size:30, hp:P(3), dmg:P(3), atkMs:380, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:350, moveType:"advance", locomotion:"walk", production:300,   mounted:true  },
+  { key:"eagle",    emoji:"🦅",  size:26, hp:P(2), dmg:P(3), atkMs:500, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:350, moveType:"jump",    locomotion:"fly",  production:300, mounted:false },
+  { key:"bat",    emoji:"🦇",  size:26, hp:P(2), dmg:P(3), atkMs:500, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:300, moveType:"jump",    locomotion:"fly",  production:300, mounted:false },
 
   // --- Submerger Melee ---
-  { key:"merman",   emoji:"🧜‍♂️", size:28, hp:P(5), dmg:P(5),  atkMs:650, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:140, moveType:"advance", locomotion:"walk", production:500, mounted:false },
-  { key:"bee",      emoji:"🐝",  size:22, hp:P(5), dmg:P(5),  atkMs:520, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:140, moveType:"advance", locomotion:"fly",  production:500, mounted:true  },
+  { key:"merman",   emoji:"🧜‍♂️", size:28, hp:P(5), dmg:P(5),  atkMs:650, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:140, moveType:"advance", locomotion:"walk", production:200, mounted:false },
+  { key:"bee",      emoji:"🐝",  size:30, hp:P(5), dmg:P(5),  atkMs:520, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:140, moveType:"advance", locomotion:"fly",  production:250, mounted:true  },
 
-  // --- Medium melee (insects) ---
-  { key:"ant",      emoji:"🐜",  size:22, hp:P(5), dmg:P(3), atkMs:360, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:160, moveType:"advance", locomotion:"walk", production:1200, mounted:true  },
-  { key:"cricket",  emoji:"🦗",  size:22, hp:P(5), dmg:P(3), atkMs:420, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:165, moveType:"jump",    locomotion:"walk", production:1400, mounted:true  },
+  // --- starter melee  ---
+  { key:"ant",      emoji:"🐜",  size:22, hp:P(5), dmg:P(3), atkMs:360, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:160, moveType:"advance", locomotion:"walk", production:800, mounted:true  },
+  { key:"caterpillar",      emoji:"🐛", size:22, hp:P(5), dmg:P(3), atkMs:360, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:160, moveType:"advance", locomotion:"walk", production:800, mounted:true  },
+
+  // cavalry archer
+  { key:"stag",     emoji:"🦌", size:22, hp:P(5), dmg:P(5),  atkMs:300, range:180,        projectile:"•",   blast:0, moveSpeed:200, moveType:"advance", locomotion:"walk", production:2800, mounted:true  },
+  { key:"camel",     emoji:"🐫", size:22, hp:P(5), dmg:P(5),  atkMs:300, range:180,        projectile:"•",   blast:0, moveSpeed:200, moveType:"advance", locomotion:"walk", production:2800, mounted:true  },
+  { key:"mosquito", emoji:"🦟", size:27, hp:P(5), dmg:P(5),  atkMs:300, range:180,        projectile:"•",   blast:0, moveSpeed:200, moveType:"advance", locomotion:"fly", production:2800, mounted:true  },
+
+  //jumper
+  { key:"kangaroo", emoji:"🦘",  size:25, hp:P(5), dmg:P(3), atkMs:420, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:165, moveType:"jump",    locomotion:"walk", production:1400, mounted:true  },
+  { key:"cricket",  emoji:"🦗",  size:25, hp:P(5), dmg:P(3), atkMs:420, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:165, moveType:"jump",    locomotion:"walk", production:1400, mounted:true  },
 
   // --- mounted, balanced melee ---
-  { key:"tiger",    emoji:"🐅",  size:40, hp:P(8), dmg:P(8), atkMs:700, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:120, moveType:"advance", locomotion:"walk", production:3200, mounted:false  },
-  { key:"fencer",   emoji:"🤺",  size:26, hp:P(4), dmg:P(5), atkMs:330, range:MELEE_RANGE, projectile:null, blast:0,  moveSpeed:135, moveType:"advance", locomotion:"walk", production:2200, mounted:false },
+  { key:"tiger",    emoji:"🐅",  size:35, hp:P(8), dmg:P(8), atkMs:400, range:MELEE_RANGE, projectile:null, blast:0, moveSpeed:120, moveType:"advance", locomotion:"walk", production:3200, mounted:false  },
+  { key:"ram",   emoji:"🐏",  size:25, hp:P(8), dmg:P(5), atkMs:400, range:MELEE_RANGE, projectile:null, blast:0,  moveSpeed:120, moveType:"advance", locomotion:"walk", production:3200, mounted:true },
   
   // Blaster
-  { key:"agent",    emoji:"🐙", size:26, hp:P(4), dmg:P(5), atkMs:480, range:180,        projectile:"•",  blast:100,  moveSpeed:120, moveType:"advance", locomotion:"fly", production:2200, mounted:false },
-  { key:"mammoth",  emoji:"🦣",  size:36, hp:P(5), dmg:P(5), atkMs:800, range:MELEE_RANGE, projectile:null, blast:100, moveSpeed:80,  moveType:"advance", locomotion:"walk", production:2400, mounted:true  },
+  { key:"butterfly",   emoji:"🦋", size:26, hp:P(5), dmg:P(8), atkMs:480, range:180,        projectile:"•",  blast:100,  moveSpeed:120, moveType:"advance", locomotion:"walk", production:2200, mounted:false },
+  { key:"squid",    emoji:"🐙", size:26, hp:P(5), dmg:P(8), atkMs:480, range:180,        projectile:"•",  blast:100,  moveSpeed:120, moveType:"advance", locomotion:"walk", production:2200, mounted:false },
+  { key:"mammoth",  emoji:"🦣",  size:36, hp:P(8), dmg:P(8), atkMs:400, range:MELEE_RANGE, projectile:null, blast:100, moveSpeed:500,  moveType:"advance", locomotion:"walk", production:1800, mounted:true  },
+  { key:"rhino",  emoji:"🦏",  size:36, hp:P(8), dmg:P(8), atkMs:400, range:MELEE_RANGE, projectile:null, blast:100, moveSpeed:500,  moveType:"advance", locomotion:"walk", production:1800, mounted:true  },
 
   // --- RANGED NUKE (ranged, short range, very long production) ---
-  { key:"ghost",    emoji:"👻",  size:28, hp:P(1), dmg:P(18),  atkMs:650, range:170, projectile:"⭐", blast:0, moveSpeed:220, moveType:"advance", locomotion:"walk", production:9000, mounted:false },
-  { key:"alien",    emoji:"👾",  size:28, hp:P(1), dmg:P(18),  atkMs:700, range:140, projectile:"🌀",  blast:0, moveSpeed:250, moveType:"advance", locomotion:"fly",  production:9000, mounted:false },
+  { key:"ghost",    emoji:"👻",  size:28, hp:P(1), dmg:P(21),  atkMs:650, range:170, projectile:"⭐", blast:0, moveSpeed:220, moveType:"advance", locomotion:"walk", production:9000, mounted:false },
+  { key:"alien",    emoji:"👾",  size:28, hp:P(1), dmg:P(21),  atkMs:700, range:140, projectile:"🌀",  blast:0, moveSpeed:250, moveType:"advance", locomotion:"fly",  production:9000, mounted:false },
 
-  // --- Short-range medium (ranged) ---
-  { key:"penguin",  emoji:"🐧",  size:22, hp:P(5), dmg:P(3), atkMs:600, range:100,  projectile:"❄️", blast:0,  moveSpeed:90,  moveType:"advance", locomotion:"walk", production:2000, mounted:false },
+  // --- Unique Short-range medium (ranged) ---
+  { key:"penguin",  emoji:"🐧",  size:22, hp:P(3), dmg:P(3), atkMs:75, range:100,  projectile:"❄️", blast:0,  moveSpeed:100,  moveType:"advance", locomotion:"walk", production:2000, mounted:false },
 
   // --- Long-range snipers (medium damage, slow attack) ---
-  { key:"fairy",    emoji:"🧚",  size:24, hp:P(3), dmg:P(5), atkMs:1200, range:500, projectile:"⚡",  blast:0,  moveSpeed:25, moveType:"advance", locomotion:"fly",  production:3000, mounted:false },
-  { key:"mermaid",  emoji:"🧜‍♀️", size:28, hp:P(4), dmg:P(5), atkMs:1200, range:500, projectile:"💧",  blast:0,  moveSpeed:25,  moveType:"advance", locomotion:"walk", production:3200, mounted:false },
+  { key:"fairy",    emoji:"🧚",  size:24, hp:P(3), dmg:P(5), atkMs:1200, range:600, projectile:"⚡",  blast:0,  moveSpeed:25, moveType:"advance", locomotion:"fly",  production:3000, mounted:false },
+  { key:"mermaid",  emoji:"🧜‍♀️", size:28, hp:P(4), dmg:P(5), atkMs:1200, range:600, projectile:"💧",  blast:0,  moveSpeed:25,  moveType:"advance", locomotion:"walk", production:3200, mounted:false },
 
-  // --- Ultimate (very high HP, DMG 13, medium range, slow move, very slow prod) ---
-  { key:"dragon",   emoji:"🐉",  size:45, hp:P(13), dmg:P(13), atkMs:1400, range:260,        projectile:"🔥",  blast:50, moveSpeed:60,  moveType:"advance", locomotion:"walk",  production:12000, mounted:false  },
+  // --- heavy attacker (very high HP, DMG 13, medium range, slow move, very slow prod) ---
+  { key:"dragon",   emoji:"🐉",  size:45, hp:P(13), dmg:P(13), atkMs:500, range:260,        projectile:"🔥",  blast:50, moveSpeed:60,  moveType:"advance", locomotion:"walk",  production:12000, mounted:false  },
 
 ];
 
@@ -167,27 +222,122 @@ const UNIT_TYPES = [
   /* -------------------------------------------------------
      Scenery
   ------------------------------------------------------- */
-  function makeClouds() {
-    const host = document.getElementById("clouds");
-    if (!host) return;
 
-    host.innerHTML = "";
-    const n = 6;
-    const w = ARENA_W();
-
-    for (let i = 0; i < n; i++) {
-      const c = document.createElement("div");
-      c.className = "cloud";
-      c.textContent = "☁️";
-      c.style.top = `${6 + Math.random() * 60}px`;
-
-      const d = 20 + Math.random() * 25;
-      c.style.left = `${Math.random() * w}px`;
-      c.style.animationDuration = `${d}s`;
-      c.style.animationDelay = `${-Math.random() * d}s`;
-      host.appendChild(c);
-    }
+function pickWeighted(items) {
+  const total = items.reduce((s, it) => s + (it.weight || 1), 0);
+  let r = Math.random() * total;
+  for (const it of items) {
+    r -= (it.weight || 1);
+    if (r <= 0) return it;
   }
+  return items[items.length - 1];
+}
+
+
+function makeClouds() {
+  const host = document.getElementById("clouds");
+  if (!host) return;
+  host.innerHTML = "";
+
+  const w = ARENA_W();
+  const n = CLOUD_COUNT(w);
+
+  for (let i = 0; i < n; i++) {
+    const spec = pickWeighted(CLOUD_TYPES);
+
+    const c = document.createElement("div");
+    c.className = "cloud";
+    c.textContent = spec.emoji;
+
+    const top = CLOUD_TOP_RANGE[0] + Math.random() * (CLOUD_TOP_RANGE[1] - CLOUD_TOP_RANGE[0]);
+    c.style.top = `${top}px`;
+
+    const size = CLOUD_SIZE_RANGE[0] + Math.random() * (CLOUD_SIZE_RANGE[1] - CLOUD_SIZE_RANGE[0]);
+    c.style.fontSize = `${size}px`;
+
+    c.style.left = `${Math.random() * w}px`;
+
+    const dur = CLOUD_SPEED_RANGE[0] + Math.random() * (CLOUD_SPEED_RANGE[1] - CLOUD_SPEED_RANGE[0]);
+    c.style.animationDuration = `${dur}s`;
+    c.style.animationDelay = `${-Math.random() * dur}s`;
+
+    host.appendChild(c);
+  }
+}
+
+
+
+function makeMidFeature() {
+  // draw into the SKY so the ground can occlude the sunk portion
+  const sky = document.getElementById("sky");
+  if (!sky) return;
+
+  // clear previous feature (idempotent on resize)
+  const old = document.getElementById("midFeatureSprite");
+  if (old) old.remove();
+
+  // pick which feature to show
+  const cfg = pickWeighted(MID_FEATURES);
+
+  // compute responsive size with optional jitter, then clamp
+  const base = Math.floor(ARENA_W() * MIDFEATURE_SIZE_FACTOR);
+  const jitter = base * MIDFEATURE_JITTER * (Math.random() * 2 - 1);
+  const size = Math.max(cfg.min ?? 36, Math.min(cfg.max ?? 72, base + jitter));
+
+  // build element
+  const el = document.createElement("div");
+  el.id = "midFeatureSprite";
+  el.textContent = cfg.emoji;
+  el.style.position = "absolute";
+  el.style.left = "50%";
+  el.style.bottom = "0";                        // bottom of SKY == horizon
+  el.style.transform =
+    `translateX(-50%) translateY(${MIDFEATURE_SINK_PX}px) scale(${cfg.scale ?? 1})`;
+  el.style.lineHeight = "1";
+  el.style.fontSize = `${size}px`;
+  el.style.opacity = "0.95";
+  // No z-index needed: #ground is after #sky so it will cover the sunk slice
+
+  sky.appendChild(el);
+}
+
+
+
+
+
+function makeMeadow() {
+  const host = document.getElementById("meadow");
+  if (!host) return;
+  host.innerHTML = "";
+
+  const w = ARENA_W();
+  const n = MEADOW_COUNT(w);
+
+  for (let i = 0; i < n; i++) {
+    const spec = pickWeighted(MEADOW_ITEMS);
+
+    const el = document.createElement("div");
+    el.className = "flora";
+    el.textContent = spec.emoji;
+    el.style.position = "absolute";
+
+    el.style.left = `${MEADOW_SIDE_MARGIN + Math.random() * (w - 2 * MEADOW_SIDE_MARGIN)}px`;
+
+    const bot = MEADOW_BOTTOM_RANGE[0] + Math.random() * (MEADOW_BOTTOM_RANGE[1] - MEADOW_BOTTOM_RANGE[0]);
+    el.style.bottom = `${bot}px`;
+
+    const scRange = spec.scale || [0.9, 1.1];
+    const sc = scRange[0] + Math.random() * (scRange[1] - scRange[0]);
+    const rot = MEADOW_ROTATION_DEG[0] + Math.random() * (MEADOW_ROTATION_DEG[1] - MEADOW_ROTATION_DEG[0]);
+    el.style.transform = `scale(${sc}) rotate(${rot}deg)`;
+
+    const op = MEADOW_OPACITY_RANGE[0] + Math.random() * (MEADOW_OPACITY_RANGE[1] - MEADOW_OPACITY_RANGE[0]);
+    el.style.opacity = `${op}`;
+
+    host.appendChild(el);
+  }
+}
+
 
   function makeTrees() {
     const host = document.getElementById("trees");
@@ -242,103 +392,149 @@ rightCastleEl.style.setProperty('--castleGlowSoft', glR.soft);
   /* -------------------------------------------------------
      Active types UI
   ------------------------------------------------------- */
-  function renderActives(side) {
-    const host = side === LEFT ? leftActivesEl : rightActivesEl;
-    host.innerHTML = "";
+function renderActives(side) {
+  const host = side === LEFT ? leftActivesEl : rightActivesEl;
+  host.innerHTML = "";
 
-    state.producers[side].forEach((p) => {
-      const t = TYPE_BY_KEY[p.typeKey];
+  state.producers[side].forEach((p) => {
+    const t = TYPE_BY_KEY[p.typeKey];
 
-      const wrap = document.createElement("div");
-      wrap.className = "activeType tooltip";
-      wrap.setAttribute(
-        "data-title",
-        `${t.emoji} ${t.key}
+    const wrap = document.createElement("div");
+    wrap.className = "activeType tooltip";
+    wrap.setAttribute(
+      "data-title",
+`${t.emoji} ${t.key}
 HP:${t.hp} DMG:${t.dmg} RNG:${t.range}
 PROD:${(t.productionScaled / 1000).toFixed(1)}s`
-      );
+    );
 
-      const face = document.createElement("div");
-      face.className = "emoji";
-      face.textContent = t.emoji;
-
-      const prog = document.createElement("div");
-      prog.className = "prog";
-
-      const fill = document.createElement("div");
-      fill.className = "fill";
-      prog.appendChild(fill);
-
-      wrap.appendChild(face);
-      wrap.appendChild(prog);
-      host.appendChild(wrap);
-
-      const remaining = Math.max(0, p.nextSpawn - now());
-      const pct = 100 - clamp((remaining / t.productionScaled) * 100, 0, 100);
-      fill.style.width = `${pct}%`;
-    });
-  }
-
-  /* -------------------------------------------------------
-     Producers and spawning
-  ------------------------------------------------------- */
-  function spawnUnit(side, typeKey) {
-    const t = TYPE_BY_KEY[typeKey];
-
-    const u = {
-      id: newId(),
-      side,
-      x: side === LEFT ? LEFT_SPAWN_X() : RIGHT_SPAWN_X(),
-      layer: t.locomotion === "fly" ? LAYERS.AIR : LAYERS.GROUND,
-      hp: t.hp,
-      typeKey,
-      nextAtk: 0,
-      jumpPhase: 0,
-      attackLockUntil: 0,
-      skippedFirst: false
-    };
-
-    const el = document.createElement("div");
-    el.className = `unit ${u.layer}`;
-    el.style.zIndex = u.layer === LAYERS.AIR ? 12 : 10;
-
-    const hpEl = document.createElement("div");
-    hpEl.className = "hp";
-    hpEl.textContent = hpDots(u.hp);
-
-    // Rider (🧎🏻) if mounted; flip the rider for the right side
-    if (t.mounted) {
-      const rider = document.createElement("div");
-      rider.className = "rider";
-      rider.textContent = "🧎🏻";
-
-      const s = t.size / 34;
-      rider.style.fontSize = `${Math.max(16, 18 * s)}px`;
-      rider.style.top = `-6px`;
-      rider.style.transform = `translateX(-50%) ${side===LEFT ? 'scaleX(-1)' : 'scaleX(1)'}`;
-
-      el.appendChild(rider);
-    }
-
-    // Unit emoji; flip right-side units so they face left
     const face = document.createElement("div");
     face.className = "emoji";
-    face.style.fontSize = `${t.size}px`;
     face.textContent = t.emoji;
-    face.style.transform = side===LEFT ? 'scaleX(-1)' : 'scaleX(1)';
 
-    el.appendChild(hpEl);
-    el.appendChild(face);
-    arena.appendChild(el);
+    const prog = document.createElement("div");
+    prog.className = "prog";
+    const fill = document.createElement("div");
+    fill.className = "fill";
+    prog.appendChild(fill);
 
-    u.el = el;
-    u.hpEl = hpEl;
-    u.faceEl = face;
+    // NEW: numeric cooldown
+    const cd = document.createElement("div");
+    cd.className = "cd";
 
-    state.units.push(u);
-    positionUnitEl(u);
-    return u;
+    wrap.appendChild(face);
+    wrap.appendChild(prog);
+    wrap.appendChild(cd);
+    host.appendChild(wrap);
+
+    const remaining = Math.max(0, p.nextSpawn - now());
+    const pct = 100 - clamp((remaining / t.productionScaled) * 100, 0, 100);
+    fill.style.width = `${pct}%`;
+
+    // label text
+    cd.textContent = remaining <= 120 ? "ready" : `${(remaining / 1000).toFixed(1)}s`;
+  });
+}
+
+/* -------------------------------------------------------
+     Producers and spawning
+------------------------------------------------------- */
+function spawnUnit(side, typeKey) {
+  const t = TYPE_BY_KEY[typeKey];
+
+  const u = {
+    id: newId(),
+    side,
+    x: side === LEFT ? LEFT_SPAWN_X() : RIGHT_SPAWN_X(),
+    layer: t.locomotion === "fly" ? LAYERS.AIR : LAYERS.GROUND,
+    hp: t.hp,
+    typeKey,
+    nextAtk: 0,
+    jumpPhase: 0,
+    attackLockUntil: 0,   // harmless if unused
+    skippedFirst: false,
+
+    // --- per-unit, independent stats copied from template ---
+    dmg:             t.dmg,
+    range:           t.range,
+    blast:           t.blast || 0,
+    moveSpeedScaled: t.moveSpeedScaled,
+    atkMsScaled:     t.atkMsScaled,
+    hpMax:           t.hp,
+    isRanged:        !!t.projectile,
+    projectileGlyph: t.projectile || null,
+    moveType:        t.moveType,
+    spawnAt:         now()
+  };
+
+  const el = document.createElement("div");
+  el.className = `unit ${u.layer}`;
+  el.style.zIndex = u.layer === LAYERS.AIR ? 12 : 10;
+
+  const hpEl = document.createElement("div");
+  hpEl.className = "hp";
+  hpEl.textContent = hpDots(u.hp);
+
+  
+  // Rider (🧎🏻) if mounted; flip the rider for the right side
+  if (t.mounted) {
+    const rider = document.createElement("div");
+    rider.className = "rider";
+    rider.textContent = "🧎🏻";
+
+    // Size the rider relative to the mount size (t.size)
+    const riderFont = Math.max(12, t.size * RIDER_TO_MOUNT_RATIO);
+    rider.style.fontSize = `${riderFont}px`;
+    rider.style.position = "absolute";
+    rider.style.left = "50%";                 // anchor at unit center
+    rider.style.top = `${RIDER_OFFSET_Y_PX}px`;
+    rider.style.transform = `translateX(-50%) ${side===LEFT ? 'scaleX(-1)' : 'scaleX(1)'}`;
+    rider.style.lineHeight = "1";
+
+    // --- Equip icon (centered on rider) ---
+    const equip = document.createElement("div");
+    equip.className = "equip";
+    equip.textContent = t.projectile ? "🏹" : "🛡️"; // ranged vs melee
+    equip.style.position = "absolute";
+    equip.style.left = "50%";
+    equip.style.top = "50%";
+    equip.style.fontSize = `${Math.round(riderFont * EQUIP_TO_RIDER_RATIO)}px`;
+    equip.style.lineHeight = "1";
+    equip.style.pointerEvents = "none";
+    equip.style.zIndex = "2";
+
+    // Center perfectly, then nudge forward & up if desired; flip nudge with side
+    const fwd = (side === LEFT ? 1 : -1) * EQUIP_OFFSET_FWD_PX;
+    equip.style.transform =
+      `translate(-50%, -50%) translate(${fwd}px, ${EQUIP_OFFSET_UP_PX}px) ` +
+      `${side===LEFT ? 'scaleX(-1)' : 'scaleX(1)'}`;
+
+    rider.appendChild(equip);
+    el.appendChild(rider);
   }
+
+
+  // Unit emoji; flip right-side units so they face left (visual)
+  const face = document.createElement("div");
+  face.className = "emoji";
+  face.style.fontSize = `${t.size}px`;
+  face.textContent = t.emoji;
+  face.style.transform = side===LEFT ? 'scaleX(-1)' : 'scaleX(1)';
+
+  el.appendChild(hpEl);
+  el.appendChild(face);
+  arena.appendChild(el);
+
+  u.el = el;
+  u.hpEl = hpEl;
+  u.faceEl = face;
+
+  state.units.push(u);
+  positionUnitEl(u);
+  return u;
+}
+
+//position unit
 
   function positionUnitEl(u) {
     u.el.style.left = `${u.x}px`;
@@ -382,37 +578,63 @@ PROD:${(t.productionScaled / 1000).toFixed(1)}s`
   /* -------------------------------------------------------
      Combat & movement
   ------------------------------------------------------- */
-  function enemiesFor(u) {
-    return state.units.filter((v) => v.side !== u.side);
+
+
+function canTarget(att, tar) {
+  // Castle: always targetable by anyone
+  if (tar.isCastle) return true;
+
+  // Melee: same-layer only
+  if (!att.isRanged) {
+    return att.layer === tar.layer; // ground melee -> ground; air melee -> air
   }
 
-  const distX = (a, b) => Math.abs(a.x - b.x);
+  // Ranged:
+  if (att.layer === LAYERS.GROUND) {
+    // ground ranged can hit ground or air
+    return tar.layer === LAYERS.GROUND || tar.layer === LAYERS.AIR;
+  } else {
+    // air ranged can ONLY hit air (and castle handled above)
+    return tar.layer === LAYERS.AIR;
+  }
+}
 
-  const facingOK = (att, tar) =>
-    att.side === LEFT ? tar.x >= att.x : tar.x <= att.x;
 
-  const inRange = (att, tar, range) =>
-    facingOK(att, tar) && distX(att, tar) <= range;
+// facing ennemies
+function enemiesFor(u) {
+  return state.units.filter((v) => v && v.side !== u.side);
+}
 
-  // try attack 
+const facingOK = (att, tar) =>
+  !!tar && (att.side === LEFT ? tar.x >= att.x : tar.x <= att.x);
+
+const inRange = (att, tar, range) =>
+  !!tar && facingOK(att, tar) && Math.abs(att.x - tar.x) <= range;
+
+
+
+// put above Combat & movement helpers
+function safeDistX(a, b) {
+  if (!a || !b) return Number.POSITIVE_INFINITY;
+  return Math.abs((a.x || 0) - (b.x || 0));
+}
+const distX = safeDistX; // keep old name working
+
+// try attack 
    
+
 function tryAttack(u) {
-  const t = TYPE_BY_KEY[u.typeKey];
   if (now() < u.nextAtk) return;
 
-  const range = t.projectile ? t.range : MELEE_RANGE;
+  const range = u.isRanged ? u.range : MELEE_RANGE;
 
-  // Collect candidates in front and in range
+  // Collect candidates that are targetable & in range (forward-only via inRange)
   const candidates = enemiesFor(u)
-    .filter((e) => {
-      if (!inRange(u, e, range)) return false;           // forward arc + distance
-      if (!t.projectile && u.layer !== e.layer) return false; // melee: same layer only
-      return true;
-    })
+    .filter((e) => canTarget(u, e) && inRange(u, e, range))
     .sort((a, b) => distX(u, a) - distX(u, b));
 
   // Jumpers skip the first enemy once
-  if (t.moveType === "jump" && !u.skippedFirst && candidates.length) {
+  if (u.moveType === "jump" && !u.skippedFirst && candidates.length) {
     u.skippedFirst = true;
     return;
   }
@@ -425,122 +647,145 @@ function tryAttack(u) {
     target = candidates[0];
   }
 
-  // Ranged can target castle if in range (forward)
-  if (!target && t.projectile) {
+  // Ranged: if nothing else, try the enemy castle
+  if (!target && u.isRanged) {
     const castleX = u.side === LEFT ? ARENA_W() - CASTLE_W / 2 : CASTLE_W / 2;
     const dummy = {
       x: castleX,
-      layer: LAYERS.GROUND,
+      layer: LAYERS.GROUND,     // used only for visuals below
       isCastle: true,
       castleSide: u.side === LEFT ? RIGHT : LEFT
     };
-    if (inRange(u, dummy, t.range)) target = dummy;
+    if (inRange(u, dummy, range)) target = dummy;
   }
 
   if (!target) return;
 
-  // Perform attack immediately
-  if (t.projectile) {
-    shoot(u, target, t);
+  // Perform attack
+  if (u.isRanged) {
+    shoot(u, target);
   } else {
-    dealDamage(u, target, t.dmg, t.blast, true);
+    dealDamage(u, target, u.dmg, u.blast, true);
   }
 
-  // Cooldown until next swing/shot
-  u.nextAtk = now() + t.atkMsScaled;
+  // Cooldown until next swing/shot (per-unit)
+  u.nextAtk = now() + u.atkMsScaled;
 }
 
 
+
    
-  function shoot(u, target, t) {
-    const pr = {
-      id: newId(),
-      side: u.side,
-      x: u.x,
+// shoot
+function shoot(u, target) {
+  // Decide projectile lane:
+  // - If target is AIR → sky lane
+  // - Else if attacker is AIR → sky lane
+  // - Else → ground lane
+  const yPx =
+    target.layer === LAYERS.AIR ? 52 : (u.layer === LAYERS.AIR ? 52 : 140);
 
-      // Aim height: if the target is in the air, projectiles visually come from the sky line
-      yPx: target.layer === LAYERS.AIR ? 52 : (u.layer === LAYERS.AIR ? 52 : 140),
+  const pr = {
+    id: newId(),
+    side: u.side,
+    x: u.x,
+    yPx,
+    speed: u.side === LEFT ? PROJ_SPEED : -PROJ_SPEED,
+    dmg: u.dmg,
+    blast: u.blast || 0,
+    el: document.createElement("div"),
 
-      speed: u.side === LEFT ? PROJ_SPEED : -PROJ_SPEED,
-      dmg: t.dmg,
-      blast: t.blast || 0,
-      el: document.createElement("div"),
-      targetLayer: target.layer || LAYERS.GROUND,
-      isForCastle: !!target.isCastle,
-      castleSide: target.castleSide
-    };
+    // Tag which lane this projectile can damage:
+    // - Against castle: no lane filter (castle is always hittable)
+    // - Otherwise: match the target's layer so ground-ranged→air uses air-only, etc.
+    targetLayer: target.isCastle ? null : (target.layer || LAYERS.GROUND),
 
-    pr.el.className = "projectile";
-    pr.el.textContent = t.projectile || "•";
-    pr.el.style.left = `${pr.x}px`;
-    pr.el.style.top = `${pr.yPx}px`;
+    isForCastle: !!target.isCastle,
+    castleSide: target.castleSide
+  };
 
-    arena.appendChild(pr.el);
-    state.projectiles.push(pr);
+  pr.el.className = "projectile";
+  pr.el.textContent = u.projectileGlyph || "•";
+  pr.el.style.left = `${pr.x}px`;
+  pr.el.style.top = `${pr.yPx}px`;
+  pr.el.style.fontSize = `${PROJECTILE_SIZE_PX}px`;
+
+  arena.appendChild(pr.el);
+  state.projectiles.push(pr);
+}
+
+// hit
+
+ function onProjectileHit(pr) {
+  if (pr.isForCastle) {
+    castleDamage(pr.castleSide, pr.dmg);
+    emitSplash(pr.x, pr.yPx, `−${pr.dmg}`);
+    if (pr.blast > 0) emitAOE(pr.x, pr.yPx);
+    return;
   }
 
-  function onProjectileHit(pr) {
-    if (pr.isForCastle) {
-      castleDamage(pr.castleSide, pr.dmg);
-      emitSplash(pr.x, pr.yPx, `−${pr.dmg}`);
-      if (pr.blast > 0) emitAOE(pr.x, pr.yPx);
-      return;
-    }
+  const units = state.units.slice(); // snapshot for stable iteration
 
-    const hits = state.units.filter(
-      (e) =>
+  const hits = units.filter(
+    (e) =>
+      e &&
+      e.side !== pr.side &&
+      (!pr.targetLayer || e.layer === pr.targetLayer) &&
+      Math.abs(e.x - pr.x) < 16
+  );
+
+  if (hits.length === 0) return;
+
+  if (pr.blast > 0) {
+    emitAOE(pr.x, pr.yPx);
+    units.forEach((e) => {
+      if (
+        e &&
         e.side !== pr.side &&
         (!pr.targetLayer || e.layer === pr.targetLayer) &&
-        Math.abs(e.x - pr.x) < 16
-    );
-
-    if (hits.length === 0) return;
-
-    if (pr.blast > 0) {
-      emitAOE(pr.x, pr.yPx);
-      state.units.forEach((e) => {
-        if (e.side !== pr.side && Math.abs(e.x - pr.x) <= pr.blast) {
-          dealDamageRaw(e, pr.dmg);
-        }
-      });
-    } else {
-      dealDamageRaw(hits[0], pr.dmg);
-    }
-  }
-
-  function dealDamage(attacker, target, dmg, blast, isMelee = false) {
-    if (target.isCastle) {
-      castleDamage(target.castleSide, dmg);
-      emitSplash(
-        attacker.x,
-        TYPE_BY_KEY[attacker.typeKey].locomotion === "fly" ? 52 : 140,
-        `−${dmg}`
-      );
-      if (blast > 0) {
-        emitAOE(
-          attacker.x,
-          TYPE_BY_KEY[attacker.typeKey].locomotion === "fly" ? 52 : 140
-        );
+        Math.abs(e.x - pr.x) <= pr.blast
+      ) {
+        dealDamageRaw(e, pr.dmg);
       }
-      return;
-    }
-
-    if (blast > 0) {
-      emitAOE(target.x, target.layer === LAYERS.AIR ? 52 : 140);
-      state.units.forEach((e) => {
-        if (e.side !== attacker.side && Math.abs(e.x - target.x) <= blast) {
-          dealDamageRaw(e, dmg);
-        }
-      });
-    } else {
-      dealDamageRaw(target, dmg);
-    }
-
-    if (isMelee) {
-      target.el.classList.add("hit");
-      setTimeout(() => target.el && target.el.classList.remove("hit"), 120);
-    }
+    });
+  } else {
+    dealDamageRaw(hits[0], pr.dmg);
   }
+}
+
+// REPLACE (your existing signature kept)
+function dealDamage(attacker, target, dmg, blast, isMelee = false) {
+  if (target.isCastle) {
+    castleDamage(target.castleSide, dmg);
+    emitSplash(attacker.x, TYPE_BY_KEY[attacker.typeKey].locomotion === "fly" ? 52 : 140, `−${dmg}`);
+    if (blast > 0) emitAOE(attacker.x, TYPE_BY_KEY[attacker.typeKey].locomotion === "fly" ? 52 : 140);
+    return;
+  }
+
+  if (blast > 0) {
+    const lane = target.layer;
+    emitAOE(target.x, lane === LAYERS.AIR ? 52 : 140);
+    // snapshot so removals during splash don’t break iteration
+    const units = state.units.slice();
+    units.forEach((e) => {
+      if (
+        e &&
+        e.side !== attacker.side &&
+        e.layer === lane &&
+        Math.abs(e.x - target.x) <= blast
+      ) {
+        dealDamageRaw(e, dmg);
+      }
+    });
+  } else {
+    dealDamageRaw(target, dmg);
+  }
+
+  if (isMelee) {
+    target.el.classList.add("hit");
+    setTimeout(() => target.el && target.el.classList.remove("hit"), 120);
+  }
+}
+
 
   function dealDamageRaw(u, dmg) {
     if (!u || !u.el) return;
@@ -585,29 +830,25 @@ function tryAttack(u) {
   /* -------------------------------------------------------
      Movement & projectile updates
   ------------------------------------------------------- */
-   function moveUnit(u, dt) {
-     const t = TYPE_BY_KEY[u.typeKey];
-   
-     // Hold position if any valid target is in forward range
-     const range = t.projectile ? t.range : MELEE_RANGE;
-     const hasEnemy = enemiesFor(u).some(e =>
-       inRange(u, e, range) &&
-       (t.projectile || u.layer === e.layer) // melee: same layer only
-     );
-     if (hasEnemy) return;
-   
-     // Otherwise, move normally (jumpers keep bouncing)
-     let dx = t.moveSpeedScaled * dt * (u.side === LEFT ? +1 : -1);
-     if (t.moveType === "jump") {
-       u.jumpPhase += dt * GLOBAL_SPEED;
-       const phase = (Math.sin(u.jumpPhase * 8) + 1) * 0.5;
-       dx *= phase < 0.8 ? 0.5 : 2.0;
-     }
+function moveUnit(u, dt) {
+  // Hold position if any valid target is in forward range
+  const range = u.isRanged ? u.range : MELEE_RANGE;
+  const hasEnemy = enemiesFor(u).some(e => canTarget(u, e) && inRange(u, e, range));
+  if (hasEnemy) return;
 
-     u.x += dx;
-     positionUnitEl(u);
-   }
+  // Move with per-unit speed
+  let dx = u.moveSpeedScaled * dt * (u.side === LEFT ? +1 : -1);
 
+  // Simple "hop" motion for jumpers
+  if (u.moveType === "jump") {
+    u.jumpPhase += dt * GLOBAL_SPEED;
+    const phase = (Math.sin(u.jumpPhase * 8) + 1) * 0.5;
+    dx *= phase < 0.8 ? 0.5 : 2.0;
+  }
+
+  u.x += dx;
+  positionUnitEl(u);
+}
 //move projectiles
    
   function moveProjectiles(dt) {
@@ -638,12 +879,14 @@ function tryAttack(u) {
           state.projectiles.splice(i, 1);
         }
       } else {
-        const candidate = state.units.find(
-          (e) =>
-            e.side !== pr.side &&
-            Math.abs(e.x - pr.x) < 10 &&
-            (!pr.targetLayer || e.layer === pr.targetLayer)
-        );
+              const candidate = state.units.find(
+                (e) =>
+                  e &&
+                  e.side !== pr.side &&
+                  Math.abs(e.x - pr.x) < 10 &&
+                  (!pr.targetLayer || e.layer === pr.targetLayer)
+              );
+
         if (candidate) {
           onProjectileHit(pr);
           pr.el.remove();
@@ -656,12 +899,30 @@ function tryAttack(u) {
   /* -------------------------------------------------------
      Draws / Card flow (double chance) + AI parity
   ------------------------------------------------------- */
-  function randomUnitKey(exclude = []) {
-    const pool = UNIT_TYPES.map((t) => t.key);
-    const filtered = pool.filter((k) => !exclude.includes(k));
-    const list = filtered.length ? filtered : pool;
-    return list[Math.floor(Math.random() * list.length)];
-  }
+  // Units currently in production on either side
+function inProductionKeys() {
+  const s = new Set();
+  state.producers.left.forEach(p => s.add(p.typeKey));
+  state.producers.right.forEach(p => s.add(p.typeKey));
+  return s;
+}
+
+// All unit keys that are NOT currently in production (plus any extra excludes)
+function availableUnitKeys(extraExcludes = []) {
+  const taken = inProductionKeys();
+  extraExcludes.forEach(k => taken.add(k));
+  return UNIT_TYPES.map(t => t.key).filter(k => !taken.has(k));
+}
+  
+function randomUnitKey(exclude = []) {
+  // Only propose from keys not already producing on either side
+  const avail = availableUnitKeys(exclude);
+
+  // If somehow exhausted (shouldn’t happen with your roster), fall back to full pool
+  const pool = avail.length ? avail : UNIT_TYPES.map(t => t.key);
+
+  return pool[Math.floor(Math.random() * pool.length)];
+}
 
   function setCardActiveUI(active) {
     cardSlot.classList.toggle("active", !!active);
@@ -850,26 +1111,31 @@ function tryAttack(u) {
   /* -------------------------------------------------------
      Game loop / end
   ------------------------------------------------------- */
-  function loop() {
-    if (!state.running) return;
+function pruneUnits() {
+  state.units = state.units.filter((u) => u && u.el);
+}
 
-    const t = performance.now();
-    const dt = clamp((t - state.lastTime) / 1000, 0, 0.05);
-    state.lastTime = t;
+function loop() {
+  if (!state.running) return;
+  pruneUnits(); // <-- add this
 
-    tickProducers();
+  const t = performance.now();
+  const dt = clamp((t - state.lastTime) / 1000, 0, 0.05);
+  state.lastTime = t;
 
-    for (let i = state.units.length - 1; i >= 0; i--) {
-      const u = state.units[i];
-      if (checkCastleBreach(u)) continue;
-      moveUnit(u, dt);
-      tryAttack(u);
-    }
+  tickProducers();
 
-    moveProjectiles(dt);
-
-    requestAnimationFrame(loop);
+  for (let i = state.units.length - 1; i >= 0; i--) {
+    const u = state.units[i];
+    if (!u || !u.el) continue;
+    if (checkCastleBreach(u)) continue;
+    moveUnit(u, dt);
+    tryAttack(u);
   }
+
+  moveProjectiles(dt);
+  requestAnimationFrame(loop);
+}
 
   function endGame(winnerSide) {
     state.running = false;
@@ -912,9 +1178,13 @@ function tryAttack(u) {
     // Scenery
     makeClouds();
     makeTrees();
+    makeMidFeature();
+    makeMeadow();
     window.addEventListener("resize", () => {
-      makeClouds();
-      makeTrees();
+    makeClouds();
+    makeTrees();
+    makeMidFeature();
+    makeMeadow();
     });
 
     // HP / initial UI
@@ -925,7 +1195,7 @@ function tryAttack(u) {
 
     // Start symmetric: both have one active to begin with (medium melee)
     addProducer(LEFT, "ant");
-    addProducer(RIGHT, "ant");
+    addProducer(RIGHT, "caterpillar");
 
     // First draw for the player; AI parity will keep up afterwards
     drawFirst(LEFT);
@@ -943,6 +1213,5 @@ function tryAttack(u) {
     init();
   }
 })();
-
 
 
