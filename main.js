@@ -25,7 +25,7 @@
   const LAYERS = { GROUND: "ground", AIR: "air" };
   const MELEE_RANGE = 28;           // pixels
   const ATTACK_STOP_MS = 260;       // stop briefly while attacking
-
+  const MAX_ACTIVE_TYPES = 5;
   // Global scaling helpers
   const scaleSpeed = (v) => v * GLOBAL_SPEED;
   const scaleTime = (ms) => ms / GLOBAL_SPEED;
@@ -64,8 +64,8 @@ const UNIT_TYPES = [
   { key:"fencer",   emoji:"🤺",  size:26, hp:P(4), dmg:P(5), atkMs:330, range:MELEE_RANGE, projectile:null, blast:0,  moveSpeed:135, moveType:"advance", locomotion:"walk", production:2200, mounted:false },
   
   // Blaster
-  { key:"agent",    emoji:"🕴️", size:26, hp:P(4), dmg:P(5), atkMs:480, range:180,        projectile:"•",  blast:50,  moveSpeed:120, moveType:"advance", locomotion:"fly", production:2200, mounted:false },
-  { key:"mammoth",  emoji:"🦣",  size:36, hp:P(5), dmg:P(5), atkMs:800, range:MELEE_RANGE, projectile:null, blast:50, moveSpeed:80,  moveType:"advance", locomotion:"walk", production:2400, mounted:true  },
+  { key:"agent",    emoji:"🐙", size:26, hp:P(4), dmg:P(5), atkMs:480, range:180,        projectile:"•",  blast:100,  moveSpeed:120, moveType:"advance", locomotion:"fly", production:2200, mounted:false },
+  { key:"mammoth",  emoji:"🦣",  size:36, hp:P(5), dmg:P(5), atkMs:800, range:MELEE_RANGE, projectile:null, blast:100, moveSpeed:80,  moveType:"advance", locomotion:"walk", production:2400, mounted:true  },
 
   // --- RANGED NUKE (ranged, short range, very long production) ---
   { key:"ghost",    emoji:"👻",  size:28, hp:P(1), dmg:P(18),  atkMs:650, range:170, projectile:"⭐", blast:0, moveSpeed:220, moveType:"advance", locomotion:"walk", production:9000, mounted:false },
@@ -347,7 +347,7 @@ PROD:${(t.productionScaled / 1000).toFixed(1)}s`
   function addProducer(side, typeKey) {
     // Keep types unique per side
     if (state.producers[side].some((p) => p.typeKey === typeKey)) return false;
-    if (state.producers[side].length >= 5) return false;
+    if (state.producers[side].length >= MAX_ACTIVE_TYPES) return false;
 
     state.producers[side].push({ typeKey, nextSpawn: now() + 50 });
     renderActives(side);
@@ -739,7 +739,7 @@ PROD:${(t.productionScaled / 1000).toFixed(1)}s`
     cardSlot.appendChild(big);
 
     // If 2nd chance and a free slot exists, auto-play immediately
-    if (stage === 2 && state.producers.left.length < 5) {
+    if (stage === 2 && state.producers.left.length < MAX_ACTIVE_TYPES) {
       const ok = addProducer(LEFT, typeKey);
       statusText.textContent = ok
         ? `2nd card auto-played ${t.emoji}`
@@ -749,7 +749,7 @@ PROD:${(t.productionScaled / 1000).toFixed(1)}s`
     }
 
     const canAdd =
-      state.producers.left.length < 5 &&
+      state.producers.left.length < MAX_ACTIVE_TYPES &&
       !state.producers.left.some((p) => p.typeKey === typeKey);
 
     if (canAdd) {
@@ -937,3 +937,4 @@ PROD:${(t.productionScaled / 1000).toFixed(1)}s`
     init();
   }
 })();
+
