@@ -259,9 +259,25 @@ body {
 
 #trees {
   position: absolute;
-  left: 0; right: 0; bottom: 6px;
+  left: 0; right: 0; bottom: 10px;
   height: 24px;
   pointer-events: none;
+}
+
+/* ADD: Mid feature (🗻/🌋) and meadow (🌼/🌾) layers */
+#midFeature,
+#meadow {
+  position: absolute;
+  inset: 0;            /* top:0; right:0; bottom:0; left:0 */
+  pointer-events: none;
+}
+
+
+/* Optional baseline so JS-only styles look crisp */
+#meadow .flora {
+  position: absolute;
+  line-height: 1;
+  filter: drop-shadow(0 1px 0 rgba(0,0,0,.25));
 }
 
 .tree {
@@ -482,6 +498,12 @@ body {
   margin-bottom: 14px;
 }
 
+/* active-type stack + cooldown label */
+.activeType { display:flex; flex-direction:column; align-items:center; gap:2px; }
+.activeType .cd { font-size:11px; line-height:1; opacity:.8; margin-top:2px; }
+
+
+
 
 /* Simple tooltip (exclude castles so it doesn't override castle ::after) */
 .tooltip[data-title]:not(.castle) { 
@@ -502,7 +524,7 @@ body {
   white-space: pre;
   box-shadow: 0 0 0 1px #1a2838;
 }
-adow: 0 0 0 1px #1a2838;
+
 }
 `;
   const style = document.createElement('style');
