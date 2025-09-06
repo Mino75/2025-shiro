@@ -47,7 +47,7 @@
   // responsive sizing; size ≈ ARENA_W * factor, then clamped by per-item min/max
   const MIDFEATURE_SIZE_FACTOR = 1 / 14;
   // push feature *down* below the horizon so ground hides that slice
-  const MIDFEATURE_SINK_PX = 6;     // increase to hide more behind horizon
+  const MIDFEATURE_SINK_PX = 0;     // increase to hide more behind horizon
   // optional random size jitter for variety (0.0 = off)
   const MIDFEATURE_JITTER = 0.0;    // e.g. 0.1 gives ±10%
 
@@ -1213,5 +1213,6 @@ function loop() {
     init();
   }
 })();
+
 
 
