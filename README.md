@@ -15,7 +15,7 @@
 - [📄 License](#-license)
 
 ## 📖 About
-Shiro 城 is an offline-first real-time strategy tower defense game built as a Progressive Web App. Players command armies of diverse units (from dinosaurs to mythical creatures) in epic castle-vs-castle battles. The game features adaptive caching strategies for reliable performance even on slow networks, making it playable anywhere without internet connectivity.
+Shiro 城 (castle) is an offline-first real-time strategy tower defense game built as a Progressive Web App. Players command armies of diverse units (from dinosaurs to mythical creatures) in epic castle-vs-castle battles. The game features adaptive caching strategies for reliable performance even on slow networks, making it playable anywhere without internet connectivity.
 
 ## 🚀 Getting Started
 
