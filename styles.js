@@ -35,32 +35,6 @@ body {
     "Apple Color Emoji", "Segoe UI Emoji";
 }
 
-/* ---------------------------------------------------------
-   Portrait lock (mobile)
---------------------------------------------------------- */
-#rotateOverlay {
-  position: fixed;
-  inset: 0;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  background: #0b0f14;
-  z-index: 9999;
-  color: #e8eef6;
-}
-
-#rotateOverlay .rotatePanel {
-  text-align: center;
-}
-
-#rotateOverlay .big {
-  font-size: 64px;
-  margin-bottom: 8px;
-}
-
-@media (orientation: portrait) {
-  #rotateOverlay { display: flex; }
-}
 
 /* ---------------------------------------------------------
    HUD (single row, compact)
